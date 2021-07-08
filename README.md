@@ -1,6 +1,6 @@
-# xair-remote
+# atem-remote
 
-Use a Behringer X-Touch Mini MIDI controller to remote control a Behringer X-Air digital mixer via the OSC network protocol. Multiple layers allow you to control volume, mute and bus sends for every input and output channel with only 8 physical encoders. Changes on the mixer will also be displayed accurately on the X-Touch controller.
+Use a Behringer X-Touch Mini MIDI controller to remote control a Blackmagic Design ATEM Switcher through the ATEM network protocol.
 
 ## Installing
 
@@ -51,23 +51,6 @@ You need to configure the device to start in MC mode. If the MC mode LED is not 
 To exit press `CTRL + C`.
 
 The folder `labels` contains labels to print and attach to your X-Touch as Excel file. You can change the labels to your specific setup. Make sure you print them in 100% size.
-
-### Layer A
-
-Layer A is used to control the main mix.
-
-This layer is active when the button `LA` is selected. The main volume is always mapped to the Fader `F1`. The lower button row is assigned globally with the following functions:
-
-Button | Function
------- | ------------------------------------------------
-B09    | Mute Group 4 (this is always my FX mute group)
-B10    | Tap Tempo (will set tempo for all delay effects)
-B11    | Unassigned
-B12    | Fader Bank 1
-B13    | Fader Bank 2
-B14    | Fader Bank 3
-B15    | Fader Bank 4
-B16    | Fader Bank 5
 
 ## License
 
