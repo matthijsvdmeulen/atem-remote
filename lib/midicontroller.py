@@ -1,8 +1,10 @@
 import threading
-import time
-import os
+import logging
+import sys
 from mido import Message, open_input, open_output, get_input_names, get_output_names
-import mido.backends.rtmidi
+from .atem import clean_shutdown
+
+logging = logging.getLogger(__name__)
 
 class MidiController:
     """
@@ -29,73 +31,59 @@ class MidiController:
     LED_BLINK = 1
     LED_ON = 127
 
-    active_layer = 0
-    active_bus = 0
-
     inport = None
     outport = None
 
     def __init__(self, state):
         self.state = state
+        state.midi_controller = self
 
-        for name in get_input_names():
-            if "x-touch mini" in name.lower():
-                print('Using MIDI input: ' + name)
-                try:
-                    self.inport = open_input(name)
-                except IOError:
-                    print('Error: Can not open MIDI input port ' + name)
-                    exit()
-                break
+        while self.inport is None or self.outport is None:
+            for name in get_input_names():
+                if "x-touch mini" in name.lower():
+                    logging.info('Using MIDI input: ' + name)
+                    try:
+                        self.inport = open_input(name)
+                    except IOError:
+                        logging.error('Can not open MIDI input port ' + name)
+                        sys.exit(1)
+                    break
 
-        for name in get_output_names():
-            if "x-touch mini" in name.lower():
-                print('Using MIDI output: ' + name)
-                try:
-                    self.outport = open_output(name)
-                except IOError:
-                    print('Error: Can not open MIDI input port ' + name)
-                    exit()
-                break
+            for name in get_output_names():
+                if "x-touch mini" in name.lower():
+                    logging.info('Using MIDI output: ' + name)
+                    try:
+                        self.outport = open_output(name)
+                    except IOError:
+                        logging.error('Can not open MIDI input port ' + name)
+                        sys.exit(1)
+                    break
 
         if self.inport is None or self.outport is None:
-            print('X-Touch Mini not found. Make sure device is connected!')
-            exit()
+            logging.error('X-Touch Mini not found. Make sure device is connected!')
+            sys.exit(1)
 
         worker = threading.Thread(target = self.midi_listener)
         worker.daemon = True
         worker.start()
 
     def monitor_ports(self):
-        try:
-            while True:
-                if self.inport.name not in get_input_names():
-                    print("X-Touch disconnected - Exiting")
-                    os._exit(1)
-                time.sleep(1)
-        except KeyboardInterrupt:
-            exit()
+        if self.inport.name not in get_input_names():
+            print("X-Touch disconnected - Exiting")
+            clean_shutdown(self.state)
+            sys.exit(1)
 
     def midi_listener(self):
-        try:
-            for msg in self.inport:
-                # print('Received {}'.format(msg))
-                if msg.type == 'note_on' and msg.velocity == 127:
-                    if msg.note in self.MIDI_BUTTONS:
-                        self.button_pushed(self.MIDI_BUTTONS.index(msg.note))
-                    elif msg.note in self.MIDI_LAYER:
-                        self.layer_pushed(self.MIDI_LAYER.index(msg.note))
-                    # else:
-                    #     print('Received unknown {}'.format(msg))
-                elif msg.type == 'pitchwheel':
-                    value = int((msg.pitch + 8192) / 16256 * 10000)
-                    # print(f"{value} = {msg.pitch}")
-                    self.state.set_transition_fader(value)
-                # elif msg.type != 'note_off' and msg.type != 'note_on':
-                #     print('Received unknown {}'.format(msg))
-        except KeyboardInterrupt:
-            self.close_midi()
-            exit()
+        for msg in self.inport:
+            # logging.debug(f'Received {msg}')
+            if msg.type == 'note_on' and msg.velocity == 127:
+                if msg.note in self.MIDI_BUTTONS:
+                    self.button_pushed(self.MIDI_BUTTONS.index(msg.note))
+                elif msg.note in self.MIDI_LAYER:
+                    self.layer_pushed(self.MIDI_LAYER.index(msg.note))
+            elif msg.type == 'pitchwheel':
+                value = int((msg.pitch + 8192) / 16256 * 10000)
+                self.state.set_transition_fader(value)
 
     def close_midi(self):
         for i in range(0, 16):
@@ -108,9 +96,9 @@ class MidiController:
 
     def button_pushed(self, button):
         if button >= 0 and button <= 5:
-            self.state.set_program_input(button)
+            self.state.set_program_input(button+1)
         if button >= 8 and button <= 13:
-            self.state.set_preview_input(button-8)
+            self.state.set_preview_input(button-8+1)
 
     def layer_pushed(self, button):
         if button == 0:
@@ -126,8 +114,8 @@ class MidiController:
         self.set_layer_button(1, on, False)
 
     def refresh_controls(self):
-        self.set_preview_input(self.state.preview)
-        self.set_program_input(self.state.program)
+        self.set_preview_input(self.state.preview-1)
+        self.set_program_input(self.state.program-1)
         if(self.state.preview != self.state.program):
             self.set_auto_button(True, self.state.autoBlink)
             self.set_cut_button(True)
@@ -160,7 +148,6 @@ class MidiController:
             else:
                 self.outport.send(Message('note_on', channel = self.MC_CHANNEL, note = dict[button], velocity = self.LED_OFF))
         except IndexError:
-            # print(f"Button {button} is not defined", end="\r")
             return
 
     def set_layer_button(self, button, on, blink = False):

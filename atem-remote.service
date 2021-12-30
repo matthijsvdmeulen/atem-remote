@@ -1,0 +1,16 @@
+[Unit]
+Description=ATEM Remote
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/atem-remote
+ExecStart=python3 /home/pi/atem-remote/atem-remote.py -a 2 -n 2
+Restart=on-failure
+KillSignal=SIGINT
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
